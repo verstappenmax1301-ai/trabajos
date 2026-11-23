@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="app-header"></div>
+
+    <!-- ================= FORMULARIO ================= -->
+    <section class="container my-5" style="max-width: 700px;">
+
+        <div class="text-center mb-4">
+            <h1 class="h3 fw-bold"><i class="bi bi-megaphone"></i> Publicar oferta de empleo</h1>
+            <p class="text-muted">Completa los datos y tu oferta aparecerá en el portal</p>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <form id="publicar-form" class="card shadow-sm p-4" novalidate>
+
+            <!-- Título -->
+            <div class="mb-3">
+                <label for="titulo" class="form-label">Título del empleo *</label>
+                <input type="text" id="titulo" name="titulo" class="form-control"
+                       placeholder="Ej. Mecánico automotriz" required>
+            </div>
+
+            <!-- Categoría -->
+            <div class="mb-3">
+                <label for="categoria_id" class="form-label">Categoría *</label>
+                <select id="categoria_id" name="categoria_id" class="form-select" required>
+                    <option value="">-- Selecciona una categoría --</option>
+                </select>
+            </div>
+
+            <!-- Empresa -->
+            <div class="mb-3">
+                <label for="empresa" class="form-label">Empresa o taller</label>
+                <input type="text" id="empresa" name="empresa" class="form-control"
+                       placeholder="Ej. Taller El Puma">
+            </div>
+
+            <!-- Ubicación -->
+            <div class="mb-3">
+                <label for="ubicacion" class="form-label">Ubicación *</label>
+                <input type="text" id="ubicacion" name="ubicacion" class="form-control"
+                       placeholder="Ej. Acambay, Estado de México" required>
+            </div>
+
+            <!-- Salario + Tipo de pago -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="salario" class="form-label">Salario *</label>
+                    <input type="number" step="0.01" min="0" id="salario" name="salario"
+                           class="form-control" placeholder="Ej. 1500" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="tipo_pago" class="form-label">Tipo de pago</label>
+                    <select id="tipo_pago" name="tipo_pago" class="form-select">
+                        <option value="">-- Selecciona --</option>
+                        <option value="Por servicio">Por servicio</option>
+                        <option value="Por hora">Por hora</option>
+                        <option value="Diario">Diario</option>
+                        <option value="Semanal">Semanal</option>
+                        <option value="Mensual">Mensual</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Descripción -->
+            <div class="mb-3">
+                <label for="descripcion" class="form-label">Descripción del empleo</label>
+                <textarea id="descripcion" name="descripcion" class="form-control" rows="4"
+                          placeholder="Describe las actividades, requisitos, horario..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-send"></i> Publicar oferta
+            </button>
+
+        </form>
+    </section>
+
+    <div id="app-footer"></div>
+
+    <script src="app.js"></script>
+    <script>
+        const session = getSession();
+        if (!session) {
+            window.location.href = "login.html";
+        }
+
+        renderLayout("publicar-empleo.html");
+        const db = getDB();
+
+        // Poblar categorías
+        const catSelect = document.getElementById("categoria_id");
+        const categoriasOrdenadas = [...db.categorias].sort((a, b) => a.nombre.localeCompare(b.nombre));
+        categoriasOrdenadas.forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c.id;
+            opt.textContent = c.nombre;
+            catSelect.appendChild(opt);
+        });
+
+        const alertContainer = document.getElementById("alert-container");
+
+        document.getElementById("publicar-form").addEventListener("submit", function(ev) {
+            ev.preventDefault();
+
+            const titulo = document.getElementById("titulo").value.trim();
+            const categoria_id = document.getElementById("categoria_id").value;
+            const empresa = document.getElementById("empresa").value.trim();
+            const ubicacion = document.getElementById("ubicacion").value.trim();
+            const salario = document.getElementById("salario").value.trim();
+            const tipo_pago = document.getElementById("tipo_pago").value.trim();
+            const descripcion = document.getElementById("descripcion").value.trim();
+
+            const errores = [];
+
+            if (titulo === "") errores.push("El título del empleo es obligatorio.");
+            if (categoria_id === "") errores.push("Debes seleccionar una categoría.");
+            if (ubicacion === "") errores.push("La ubicación es obligatoria.");
+            if (salario === "" || isNaN(Number(salario)) || Number(salario) < 0) {
+                errores.push("El salario debe ser un número mayor o igual a 0.");
+            }
+
+            if (errores.length === 0 && categoria_id !== "") {
+                const catExiste = db.categorias.some(c => Number(c.id) === Number(categoria_id));
+                if (!catExiste) errores.push("La categoría seleccionada no es válida.");
+            }
+
+            if (errores.length > 0) {
+                alertContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            ${errores.map(e => `<li>${escapeHTML(e)}</li>`).join("")}
+                        </ul>
+                    </div>
+                `;
+                return;
+            }
+
+            const nuevoId = db.empleos.length > 0 ? Math.max(...db.empleos.map(e => e.id)) + 1 : 1;
+            const hoy = new Date().toISOString().slice(0, 10);
+
+            db.empleos.push({
+                id: nuevoId,
+                usuario_id: session.usuario_id,
+                categoria_id: Number(categoria_id),
+                titulo,
+                empresa,
+                descripcion,
+                ubicacion,
+                salario: Number(salario),
+                tipo_pago,
+                estatus: "activo",
+                creado_en: hoy
+            });
+            saveDB(db);
+
+            window.location.href = `ver-detalles.html?id=${nuevoId}&creado=ok`;
+        });
+    </script>
+</body>
+</html>

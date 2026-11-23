@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="app-header"></div>
+
+    <!-- ###sección hero### -->
+    <section class="hero text-black py-5">
+        <div class="container py-4 text-center">
+            <h1 class="display-5 fw-bold mb-3">Encuentre su primer empleo</h1>
+            <p class="fs-5 mb-4">Mas de <strong>mil ofertas</strong> de empleo </p>
+            <form class="row g-2 justify-content-center" action="empleos.html" method="GET">
+                <div class="col-md-5">
+                    <input type="text" name="q" class="form-control form-control-lg" placeholder="Ingrese su busqueda">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" name="ubicacion" class="form-control form-control-lg" placeholder="Ubicación">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-warning btn-lg w-100">
+                         <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- ##sección categoria### -->
+    <section class="container my-5">
+        <h2 class="h3 mb-4 text-center">Explora por categoria</h2>
+        <div class="row g-3 text-center" id="categorias-container"></div>
+    </section>
+
+    <!-- ###sección ultimas ofertas### -->
+    <section class="container my-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 mb-0"><i class="bi bi-fire text-danger"></i> Últimas ofertas de empleo</h2>
+            <a href="empleos.html" class="btn btn-outline-primary btn-sm">Mostrar todas</a>
+        </div>
+        <div class="row g-4" id="ultimas-ofertas-container"></div>
+    </section>
+
+    <!-- ###publicar oficio### -->
+    <section class="bg-light py-5">
+        <div class="container text-center">
+            <h2 class="h3 mb-3">Sabes un Oficio</h2>
+            <p class="text-muted mb-4">Publica tu oficio y llega a miles de personas</p>
+            <a href="publicar-empleo.html" class="btn btn-primary btn-lg"><i class="bi bi-megaphone"></i>Publica tu Oficio</a>
+        </div>
+    </section>
+
+    <div id="app-footer"></div>
+
+    <script src="app.js"></script>
+    <script>
+        renderLayout("index.html");
+        const db = getDB();
+
+        // Renderizar categorías
+        const catContainer = document.getElementById("categorias-container");
+        const categorias = [...db.categorias].sort((a, b) => a.id - b.id);
+        catContainer.innerHTML = categorias.map(c => `
+            <div class="col-6 col-md-2">
+                <a href="empleos.html?cat=${c.id}" class="text-decoration-none">
+                    <div class="card card-empleo shadow-sm p-3">
+                        <i class="${escapeHTML(c.icono)} fs-2 text-danger"></i>
+                        <small class="mt-2 fw-semibold">${escapeHTML(c.nombre)}</small>
+                    </div>
+                </a>
+            </div>
+        `).join("");
+
+        // Renderizar últimas 6 ofertas activas
+        const ofertasContainer = document.getElementById("ultimas-ofertas-container");
+        const activos = db.empleos
+            .filter(e => e.estatus === "activo")
+            .sort((a, b) => b.id - a.id)
+            .slice(0, 6);
+
+        if (activos.length === 0) {
+            ofertasContainer.innerHTML = `
+                <div class="col-12 text-center text-muted">
+                    <p>Aún no hay ofertas publicadas.</p>
+                </div>
+            `;
+        } else {
+            ofertasContainer.innerHTML = activos.map(e => {
+                const cat = db.categorias.find(c => c.id === Number(e.categoria_id));
+                const catNombre = cat ? cat.nombre : "General";
+                return `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card card-empleo shadow-sm h-100">
+                            <div class="card-body">
+                                <span class="badge bg-primary mb-2">${escapeHTML(catNombre)}</span>
+                                <h5 class="card-title">${escapeHTML(e.titulo)}</h5>
+                                <p class="text-muted mb-1">
+                                    <i class="bi bi-building"></i> ${escapeHTML(e.empresa || "Sin empresa")}
+                                </p>
+                                <p class="text-muted mb-1">
+                                    <i class="bi bi-geo-alt"></i> ${escapeHTML(e.ubicacion)}
+                                </p>
+                                <p class="fw-bold text-success mb-2">
+                                    $${formatMoney(e.salario)}
+                                </p>
+                                <a href="ver-detalles.html?id=${e.id}" class="btn btn-outline-primary w-100">
+                                    Ver detalles
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+    </script>
+</body>
+</html>

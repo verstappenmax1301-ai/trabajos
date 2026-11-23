@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="app-header"></div>
+
+    <!-- ================= BUSCADOR SUPERIOR ================= -->
+    <section class="bg-primary text-white py-4">
+        <div class="container">
+            <h1 class="h3 fw-bold mb-3">Encuentra tu próximo empleo</h1>
+            <form class="row g-2" method="GET" action="empleos.html">
+                <div class="col-md-5">
+                    <input type="text" id="input-q" name="q" class="form-control"
+                           placeholder="¿Qué buscas? (Ej. mecánico, plomero...)">
+                </div>
+                <div class="col-md-4">
+                    <input type="text" id="input-ubicacion" name="ubicacion" class="form-control"
+                           placeholder="Ubicación">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- ================= LISTADO ================= -->
+    <section class="container my-5">
+        <div class="row g-4">
+
+            <!-- Filtros laterales -->
+            <div class="col-lg-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-funnel"></i> Categorías</h6>
+                        <ul class="list-unstyled mb-0" id="filtro-categorias"></ul>
+                    </div>
+                </div>
+                <div id="limpiar-filtros-container"></div>
+            </div>
+
+            <!-- Resultados -->
+            <div class="col-lg-9">
+                <p class="text-muted" id="resumen-busqueda"></p>
+                <div id="resultados-container"></div>
+            </div>
+
+        </div>
+    </section>
+
+    <div id="app-footer"></div>
+
+    <script src="app.js"></script>
+    <script>
+        renderLayout("empleos.html");
+        const db = getDB();
+
+        const params = new URLSearchParams(window.location.search);
+        const q = (params.get("q") || "").trim();
+        const ubicacion = (params.get("ubicacion") || "").trim();
+        const categoria = parseInt(params.get("cat") || "0", 10) || 0;
+
+        document.getElementById("input-q").value = q;
+        document.getElementById("input-ubicacion").value = ubicacion;
+
+        // Filtrar empleos
+        const empleos = db.empleos
+            .filter(e => {
+                if (e.estatus !== "activo") return false;
+                if (q !== "") {
+                    const qLow = q.toLowerCase();
+                    const matchTitulo = (e.titulo || "").toLowerCase().includes(qLow);
+                    const matchDesc = (e.descripcion || "").toLowerCase().includes(qLow);
+                    if (!matchTitulo && !matchDesc) return false;
+                }
+                if (ubicacion !== "") {
+                    const uLow = ubicacion.toLowerCase();
+                    if (!(e.ubicacion || "").toLowerCase().includes(uLow)) return false;
+                }
+                if (categoria > 0 && Number(e.categoria_id) !== categoria) {
+                    return false;
+                }
+                return true;
+            })
+            .sort((a, b) => b.id - a.id);
+
+        // Categorías laterales
+        const categoriasOrdenadas = [...db.categorias].sort((a, b) => a.nombre.localeCompare(b.nombre));
+        const filtroList = document.getElementById("filtro-categorias");
+        let catHTML = `
+            <li class="mb-1">
+                <a href="empleos.html${q ? "?q=" + encodeURIComponent(q) : ""}"
+                   class="text-decoration-none ${categoria === 0 ? "fw-bold text-primary" : "text-dark"}">
+                    Todas
+                </a>
+            </li>
+        `;
+        categoriasOrdenadas.forEach(c => {
+            const href = `empleos.html?cat=${c.id}${q ? "&q=" + encodeURIComponent(q) : ""}${ubicacion ? "&ubicacion=" + encodeURIComponent(ubicacion) : ""}`;
+            catHTML += `
+                <li class="mb-1">
+                    <a href="${href}"
+                       class="text-decoration-none ${categoria === Number(c.id) ? "fw-bold text-primary" : "text-dark"}">
+                        ${escapeHTML(c.nombre)}
+                    </a>
+                </li>
+            `;
+        });
+        filtroList.innerHTML = catHTML;
+
+        if (q || ubicacion || categoria) {
+            document.getElementById("limpiar-filtros-container").innerHTML = `
+                <a href="empleos.html" class="btn btn-outline-secondary btn-sm w-100 mt-3">
+                    <i class="bi bi-x-circle"></i> Limpiar filtros
+                </a>
+            `;
+        }
+
+        // Resumen
+        let resumenHTML = `<strong>${empleos.length}</strong> oferta(s) encontrada(s)`;
+        if (q) resumenHTML += ` para "<em>${escapeHTML(q)}</em>"`;
+        if (ubicacion) resumenHTML += ` en "<em>${escapeHTML(ubicacion)}</em>"`;
+        document.getElementById("resumen-busqueda").innerHTML = resumenHTML;
+
+        // Tarjetas de resultados
+        const resContainer = document.getElementById("resultados-container");
+        if (empleos.length === 0) {
+            resContainer.innerHTML = `
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-emoji-frown fs-3 d-block mb-2"></i>
+                    No encontramos ofertas con esos filtros.
+                    <br>
+                    <a href="empleos.html" class="btn btn-sm btn-primary mt-2">Ver todas las ofertas</a>
+                </div>
+            `;
+        } else {
+            resContainer.innerHTML = `<div class="row g-3">` + empleos.map(e => {
+                const cat = db.categorias.find(c => c.id === Number(e.categoria_id));
+                const catNombre = cat ? cat.nombre : "General";
+                return `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card card-empleo shadow-sm h-100">
+                            <div class="card-body">
+                                <span class="badge bg-primary mb-2">${escapeHTML(catNombre)}</span>
+                                <h5 class="card-title">${escapeHTML(e.titulo)}</h5>
+                                <p class="text-muted mb-1 small">
+                                    <i class="bi bi-building"></i> ${escapeHTML(e.empresa || "Sin empresa")}
+                                </p>
+                                <p class="text-muted mb-1 small">
+                                    <i class="bi bi-geo-alt"></i> ${escapeHTML(e.ubicacion)}
+                                </p>
+                                <p class="fw-bold text-success mb-2">
+                                    $${formatMoney(e.salario)}
+                                    <small class="text-muted fs-6">${escapeHTML(e.tipo_pago || "")}</small>
+                                </p>
+                                <a href="ver-detalles.html?id=${e.id}" class="btn btn-outline-primary w-100">
+                                    Ver detalles
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("") + `</div>`;
+        }
+    </script>
+</body>
+</html>

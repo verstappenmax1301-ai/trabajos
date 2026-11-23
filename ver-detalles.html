@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="app-header"></div>
+
+    <!-- ================= DETALLE DEL EMPLEO ================= -->
+    <section class="container my-5" id="main-content"></section>
+
+    <div id="app-footer"></div>
+
+    <script src="app.js"></script>
+    <script>
+        renderLayout("ver-detalles.html");
+        const db = getDB();
+        const session = getSession();
+        const params = new URLSearchParams(window.location.search);
+        const id = parseInt(params.get("id") || "0", 10) || 0;
+
+        if (id <= 0) {
+            window.location.href = "empleos.html";
+        }
+
+        const empleo = db.empleos.find(e => Number(e.id) === id);
+        const mainContent = document.getElementById("main-content");
+
+        if (!empleo) {
+            mainContent.className = "container my-5 text-center";
+            mainContent.innerHTML = `
+                <h1 class="display-5 text-danger">404</h1>
+                <p class="fs-5">La oferta que buscas no existe o fue eliminada.</p>
+                <a href="empleos.html" class="btn btn-primary">Ver todas las ofertas</a>
+            `;
+        } else {
+            const cat = db.categorias.find(c => Number(c.id) === Number(empleo.categoria_id));
+            const empleador = db.usuarios.find(u => Number(u.id) === Number(empleo.usuario_id)) || {
+                nombre: "Empleador Cecy-Jobs",
+                telefono: "",
+                email: "contacto@cecyjobs.com"
+            };
+
+            function renderDetalle(mensajeExito = null, mensajeError = null) {
+                const yaPostulado = session
+                    ? db.postulaciones.some(p => Number(p.empleo_id) === id && Number(p.usuario_id) === Number(session.usuario_id))
+                    : false;
+
+                let alertsHTML = "";
+                if (params.get("creado") === "ok" && !mensajeExito) {
+                    alertsHTML += `
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle-fill"></i> ¡Tu oferta se publicó correctamente!
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `;
+                }
+                if (mensajeExito) {
+                    alertsHTML += `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle-fill"></i> ${escapeHTML(mensajeExito)}
+                        </div>
+                    `;
+                }
+                if (mensajeError) {
+                    alertsHTML += `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle-fill"></i> ${escapeHTML(mensajeError)}
+                        </div>
+                    `;
+                }
+
+                let postulacionBoxHTML = "";
+                if (!session) {
+                    postulacionBoxHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <a href="login.html">Inicia sesión</a> para postularte a esta oferta.
+                        </div>
+                    `;
+                } else if (yaPostulado) {
+                    postulacionBoxHTML = `
+                        <div class="alert alert-success text-center">
+                            <i class="bi bi-check2-circle fs-3 d-block mb-2"></i>
+                            Ya te has postulado a esta oferta.
+                        </div>
+                    `;
+                } else {
+                    postulacionBoxHTML = `
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-send"></i> Postularme</h6>
+                                <form id="postular-form">
+                                    <div class="mb-2">
+                                        <label for="mensaje" class="form-label small">Mensaje (opcional)</label>
+                                        <textarea id="mensaje" name="mensaje" class="form-control" rows="3"
+                                                  placeholder="Cuéntale al empleador por qué eres ideal..."></textarea>
+                                    </div>
+                                    <button type="submit" name="postularme" value="1" class="btn btn-primary w-100">
+                                        <i class="bi bi-send"></i> Enviar postulación
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const descFormatted = escapeHTML(empleo.descripcion || "Sin descripción.").replace(/\n/g, "<br>");
+
+                mainContent.innerHTML = `
+                    ${alertsHTML}
+                    <div class="row g-4">
+                        <!-- Columna principal -->
+                        <div class="col-lg-8">
+                            <div class="card shadow-sm">
+                                <div class="card-body p-4">
+                                    <span class="badge bg-primary mb-2">${escapeHTML(cat ? cat.nombre : "General")}</span>
+                                    <h1 class="h3 fw-bold">${escapeHTML(empleo.titulo)}</h1>
+
+                                    <p class="text-muted mb-1">
+                                        <i class="bi bi-building"></i>
+                                        ${escapeHTML(empleo.empresa || "Sin empresa registrada")}
+                                    </p>
+                                    <p class="text-muted mb-1">
+                                        <i class="bi bi-geo-alt"></i>
+                                        ${escapeHTML(empleo.ubicacion)}
+                                    </p>
+                                    <p class="text-muted mb-3">
+                                        <i class="bi bi-calendar"></i>
+                                        Publicado el ${formatDate(empleo.creado_en)}
+                                    </p>
+
+                                    <hr>
+
+                                    <h5 class="fw-bold">Descripción</h5>
+                                    <p>${descFormatted}</p>
+
+                                    <hr>
+
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="text-muted small">Salario</span>
+                                            <div class="h4 text-success mb-0">
+                                                $${formatMoney(empleo.salario)}
+                                                <small class="text-muted fs-6">${escapeHTML(empleo.tipo_pago || "")}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Columna lateral: contacto + postulación -->
+                        <div class="col-lg-4">
+                            <div class="card shadow-sm mb-3">
+                                <div class="card-body">
+                                    <h6 class="fw-bold mb-3"><i class="bi bi-person-badge"></i> Sobre el empleador</h6>
+                                    <p class="mb-1"><strong>${escapeHTML(empleador.nombre)}</strong></p>
+                                    ${empleador.telefono ? `<p class="mb-1 text-muted small"><i class="bi bi-telephone"></i> ${escapeHTML(empleador.telefono)}</p>` : ""}
+                                    <p class="mb-0 text-muted small">
+                                        <i class="bi bi-envelope"></i> ${escapeHTML(empleador.email)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${postulacionBoxHTML}
+
+                            <a href="empleos.html" class="btn btn-outline-secondary w-100 mt-3">
+                                <i class="bi bi-arrow-left"></i> Volver a las ofertas
+                            </a>
+                        </div>
+                    </div>
+                `;
+
+                const postForm = document.getElementById("postular-form");
+                if (postForm) {
+                    postForm.addEventListener("submit", function(ev) {
+                        ev.preventDefault();
+                        if (!session) {
+                            window.location.href = "login.html";
+                            return;
+                        }
+                        const mensaje = document.getElementById("mensaje").value.trim();
+                        const duplicado = db.postulaciones.some(p => Number(p.empleo_id) === id && Number(p.usuario_id) === Number(session.usuario_id));
+                        if (duplicado) {
+                            renderDetalle(null, "Ya te has postulado a esta oferta anteriormente.");
+                            return;
+                        }
+                        const nuevoPostId = db.postulaciones.length > 0 ? Math.max(...db.postulaciones.map(p => p.id)) + 1 : 1;
+                        db.postulaciones.push({
+                            id: nuevoPostId,
+                            empleo_id: id,
+                            usuario_id: session.usuario_id,
+                            mensaje
+                        });
+                        saveDB(db);
+                        renderDetalle("¡Tu postulación se envió con éxito!", null);
+                    });
+                }
+            }
+
+            renderDetalle();
+        }
+    </script>
+</body>
+</html>
